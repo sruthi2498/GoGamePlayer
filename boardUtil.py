@@ -155,6 +155,7 @@ def calculateUtilityOfBoard(board, my_piece):
     countDiff = blackCount-whiteCount if my_piece==1 else blackCount-whiteCount
     blackScore = blackCount
     whiteScore = whiteCount + 2.5
+    myScore = blackScore if my_piece==1 else whiteScore
     
 
     f5 = blackScore-whiteScore if my_piece==1 else whiteScore-blackScore
@@ -163,7 +164,7 @@ def calculateUtilityOfBoard(board, my_piece):
     f4 = blackEuler - whiteEuler if my_piece==1 else  whiteEuler - blackEuler
 
 
-    utility =  max(f1 + f2  +f5, -4) - (4*f4)  + (countDiffFactor*countDiff)
+    utility =  max(f1 + f2  , -4) - (4*f4)  + (countDiffFactor*countDiff)  + myScore
     
     
     '''
