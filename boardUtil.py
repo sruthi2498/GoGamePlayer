@@ -7,12 +7,6 @@ boardSize =5
 PLAYER_BLACK = 1
 PLAYER_WHITE = 2
 
-# t1=time.time()
-# data = readJson("data.txt")
-# print("readJson time = ",time.time()-t1)
-
-data={}
-# dataModel = DataModel()
 
 def encode_state(state):
     return ''.join([str(state[i][j]) for i in range(boardSize) for j in range(boardSize)])
@@ -27,59 +21,47 @@ def get_neighbour_positions(i,j):
 
 def get_edge_counts(board,board_encoded,my_piece):
     opponent_piece_type = 2 if my_piece==1 else 1
-    if board_encoded in data and "eC" in data[board_encoded] and  str(my_piece) in data[board_encoded]["eC"] and str(opponent_piece_type) in data[board_encoded]["eC"]:
-        myTotalCount= data[board_encoded]["eC"][str(my_piece)]
-        opponentCount = data[board_encoded]["eC"][str(opponent_piece_type)]
-    else:
-        myTotalCount = 0
-        opponentCount=0
-        n = len(board)
-        i=0
+    myTotalCount = 0
+    opponentCount=0
+    n = len(board)
+    i=0
+    for j in range(n):
+        if board[i][j] == my_piece:
+            myTotalCount+=1
+        elif board[i][j] == opponent_piece_type:
+            opponentCount+=1
+    j=0
+    for i in range(1,n):
+        if board[i][j] == my_piece:
+            myTotalCount+=1
+        elif board[i][j] == opponent_piece_type:
+            opponentCount+=1
+    i=n-1
+    for j in range(1,n):
+        if board[i][j] == my_piece:
+            myTotalCount+=1
+        elif board[i][j] == opponent_piece_type:
+            opponentCount+=1
+    j=n-1
+    for i in range(1,n-1):
+        if board[i][j] == my_piece:
+            myTotalCount+=1
+        elif board[i][j] == opponent_piece_type:
+            opponentCount+=1
+    
+    return myTotalCount,opponentCount
+
+def get_counts(board,board_encoded,my_piece):
+    opponent_piece_type = 2 if my_piece==1 else 1
+    myTotalCount = 0
+    opponentCount=0
+    n = len(board)
+    for i in range(n):
         for j in range(n):
             if board[i][j] == my_piece:
                 myTotalCount+=1
             elif board[i][j] == opponent_piece_type:
                 opponentCount+=1
-        j=0
-        for i in range(1,n):
-            if board[i][j] == my_piece:
-                myTotalCount+=1
-            elif board[i][j] == opponent_piece_type:
-                opponentCount+=1
-        i=n-1
-        for j in range(1,n):
-            if board[i][j] == my_piece:
-                myTotalCount+=1
-            elif board[i][j] == opponent_piece_type:
-                opponentCount+=1
-        j=n-1
-        for i in range(1,n-1):
-            if board[i][j] == my_piece:
-                myTotalCount+=1
-            elif board[i][j] == opponent_piece_type:
-                opponentCount+=1
-        
-        data[board_encoded]["eC"] = {str(my_piece) : myTotalCount, str(opponent_piece_type): opponentCount}
-    return myTotalCount,opponentCount
-
-def get_counts(board,board_encoded,my_piece):
-    opponent_piece_type = 2 if my_piece==1 else 1
-    if board_encoded in data and "c" in data[board_encoded] and  str(my_piece) in data[board_encoded]["c"] and str(opponent_piece_type) in data[board_encoded]["c"]:
-        myTotalCount= data[board_encoded]["c"][str(my_piece)]
-        opponentCount = data[board_encoded]["c"][str(opponent_piece_type)]
-    else:
-        myTotalCount = 0
-        opponentCount=0
-        n = len(board)
-        for i in range(n):
-            for j in range(n):
-                if board[i][j] == my_piece:
-                    myTotalCount+=1
-                elif board[i][j] == opponent_piece_type:
-                    opponentCount+=1
-        if board_encoded not in data:
-            data[board_encoded]={}
-        data[board_encoded]["c"] = {str(my_piece) : myTotalCount, str(opponent_piece_type): opponentCount}
     return myTotalCount,opponentCount
     
 def get_total_first_order_liberty_count(board,locs,piece):
@@ -147,17 +129,8 @@ def get_liberties(board,board_encoded,my_piece):
 
 def get_dead_count(board,board_encoded,my_piece):
     opponent_piece_type = 2 if my_piece==1 else 1
-    
-    if board_encoded in data and "d" in data[board_encoded] and  str(my_piece) in data[board_encoded]["d"] and str(opponent_piece_type) in data[board_encoded]["d"]:
-    
-        myDeadCount = data[board_encoded]["d"][str(my_piece)]
-        oppDeadCount = data[board_encoded]["d"][str(opponent_piece_type)]
-    else:
-        myDeadCount = len(find_dead_pieces(board,my_piece))
-        oppDeadCount = len(find_dead_pieces(board,opponent_piece_type))
-        if board_encoded not in data:
-            data[board_encoded]={}
-        data[board_encoded]["d"] = {str(my_piece) : myDeadCount, str(opponent_piece_type): oppDeadCount}
+    myDeadCount = len(find_dead_pieces(board,my_piece))
+    oppDeadCount = len(find_dead_pieces(board,opponent_piece_type))
     return myDeadCount,oppDeadCount
 
 
@@ -180,17 +153,17 @@ def calculateUtilityOfBoard(board, my_piece):
     # totalCount = blackCount+whiteCount
     countDiffFactor = 4 if my_piece==1 else 2
     countDiff = blackCount-whiteCount if my_piece==1 else blackCount-whiteCount
-    # blackScore = blackCount
-    # whiteScore = whiteCount + 2.5
+    blackScore = blackCount
+    whiteScore = whiteCount + 2.5
     
 
-    # f5 = blackScore-whiteScore if my_piece==1 else whiteScore-blackScore
+    f5 = blackScore-whiteScore if my_piece==1 else whiteScore-blackScore
 
     blackEuler,whiteEuler = calculate_euler_number(board,board_encoded,1)
     f4 = blackEuler - whiteEuler if my_piece==1 else  whiteEuler - blackEuler
 
 
-    utility =  max(f1 + f2  , -4) - (4*f4)  + (countDiffFactor*countDiff)
+    utility =  max(f1 + f2  +f5, -4) - (4*f4)  + (countDiffFactor*countDiff)
     
     
     '''
@@ -227,20 +200,11 @@ def calculate_quad_counts(board,piece_type):
 
 def calculate_euler_number(board,board_encoded,my_piece):
     opponent_piece_type = 2 if my_piece==1 else 1
-    if board_encoded in data and "e" in data[board_encoded] and  str(my_piece) in data[board_encoded]["e"] and str(opponent_piece_type) in data[board_encoded]["e"]:
-    
-        my_euler = data[board_encoded]["e"][str(my_piece)]
-        opp_euler = data[board_encoded]["e"][str(opponent_piece_type)]
-    else:
-        quad_dict = calculate_quad_counts(board,my_piece)
-        my_euler =  (quad_dict["q1"]-quad_dict["q3"] + (2*quad_dict["qd"]))/4
+    quad_dict = calculate_quad_counts(board,my_piece)
+    my_euler =  (quad_dict["q1"]-quad_dict["q3"] + (2*quad_dict["qd"]))/4
 
-        quad_dict = calculate_quad_counts(board,opponent_piece_type)
-        opp_euler =  (quad_dict["q1"]-quad_dict["q3"] + (2*quad_dict["qd"]))/4
-        if board_encoded not in data:
-            data[board_encoded]={}
-        data[board_encoded]["e"] = {str(my_piece) : my_euler, str(opponent_piece_type): opp_euler}
-
+    quad_dict = calculate_quad_counts(board,opponent_piece_type)
+    opp_euler =  (quad_dict["q1"]-quad_dict["q3"] + (2*quad_dict["qd"]))/4
     return my_euler,opp_euler
 
 
@@ -368,13 +332,7 @@ def valid_place_check(board, i, j, piece_type, test_check=False):
 
 def store_move_ordering(board_encoded,piece_type,actions):
     print("Storing move ordering for ",board_encoded)
-    if board_encoded not in data:
-        data[board_encoded]={}
-    if  "m" not in data[board_encoded]:
-        data[board_encoded]["m"]={}
     
-    data[board_encoded]["m"]={str(piece_type):actions}
-        
 
 def get_move_ordering(board_encoded,piece_type):
     return []
