@@ -118,6 +118,8 @@ class MyPlayer():
 
 
     def get_next_move(self,previous_board, board, moveCount):
+        if self.piece_type==1 and moveCount==1:
+            return [1,1]
         action = self.AlphaBetaSearch(previous_board,board, moveCount)
         print(action)
         return action
