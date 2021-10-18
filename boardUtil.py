@@ -1,4 +1,5 @@
 from copy import deepcopy
+import random
 # from jsonUtil import readJson, writeJson,WriterTask
 import time
 
@@ -51,7 +52,7 @@ def get_edge_counts(board,board_encoded,my_piece):
     
     return myTotalCount,opponentCount
 
-def get_counts(board,board_encoded,my_piece):
+def get_counts(board,my_piece):
     opponent_piece_type = 2 if my_piece==1 else 1
     myTotalCount = 0
     opponentCount=0
@@ -63,6 +64,15 @@ def get_counts(board,board_encoded,my_piece):
             elif board[i][j] == opponent_piece_type:
                 opponentCount+=1
     return myTotalCount,opponentCount
+
+def get_count(board,piece):
+    count = 0
+    n = len(board)
+    for i in range(n):
+        for j in range(n):
+            if board[i][j] == piece:
+                count+=1
+    return count
     
 def get_total_first_order_liberty_count(board,locs,piece):
     totalLiberty = 0
@@ -149,12 +159,14 @@ def calculateUtilityOfBoard(board, my_piece):
     # blackEdgeCount,whiteEdgeCount = get_edge_counts(board,board_encoded,1)
     # edgeCountDiff = blackEdgeCount - whiteEdgeCount if my_piece==1 else  whiteEdgeCount - blackEdgeCount  
 
-    blackCount,whiteCount = get_counts(board,board_encoded,1)
+    blackCount,whiteCount = get_counts(board,1)
     # totalCount = blackCount+whiteCount
     countDiffFactor = 4 if my_piece==1 else 2
-    countDiff = blackCount-whiteCount if my_piece==1 else blackCount-whiteCount
+    countDiff = blackCount-whiteCount if my_piece==1 else whiteCount-blackCount
     blackScore = blackCount
     whiteScore = whiteCount + 2.5
+    if my_piece==1:
+        whiteScore+=2
     myScore = blackScore if my_piece==1 else whiteScore
     
 
@@ -166,6 +178,8 @@ def calculateUtilityOfBoard(board, my_piece):
 
     utility =  max(f1   , -4) - (4*f4)  + (countDiffFactor*countDiff)  + myScore
     
+    # if my_piece==1 and countDiff<3:
+    #     utility-=5
     
     '''
     int score  =  Math.min(Math.max(liberties,-4), 4)  + -4*euler + 5*numOfPieces  + numOnEdge '''
@@ -279,32 +293,20 @@ def compare_board( board1, board2):
                 return False
     return True
 
-def valid_place_check(board, i, j, piece_type, test_check=False):
+def is_position_valid(board, i, j, piece_type, test_check=False):
     
     verbose = True
     if test_check:
         verbose = False
 
-    # Check if the place is in the board range
     if not (i >= 0 and i < len(board)):
-        #if verbose:
-            #print(('Invalid placement. row should be in the range 1 to {}.').format(len(board) - 1))
         return False
     if not (j >= 0 and j < len(board)):
-        #if verbose:
-            #print(('Invalid placement. column should be in the range 1 to {}.').format(len(board) - 1))
         return False
     
-    # Check if the place already has a piece
     if board[i][j] != 0:
-        #if verbose:
-            #print('Invalid placement. There is already a chess in this position.')
         return False
-    
-    # Copy the board for testing
     test_board = deepcopy(board)
-
-    # Check if the place has liberty
     test_board[i][j] = piece_type
 
     liberty_exists,_ = check_liberty_exists(test_board,i,j,piece_type,[])
@@ -312,22 +314,13 @@ def valid_place_check(board, i, j, piece_type, test_check=False):
     if liberty_exists:
         return True
 
-    # If not, remove the died piece s of opponent and check again
     opponent_piece_type = 2 if piece_type==1 else 1
     dead_pieces,test_board = remove_died_pieces(test_board,opponent_piece_type)
-    #print(dead_pieces)
     liberty_exists,_ = check_liberty_exists(test_board,i,j,piece_type,[])
-    #print("Second liberty check : ",liberty_exists)
     if not liberty_exists:
-        if verbose:
-            print('Invalid placement. No liberty found in this position.')
         return False
-
-    # Check special case: repeat placement causing the repeat board state (KO rule)
     else:
         if dead_pieces and compare_board(board, test_board):
-            if verbose:
-                print('Invalid placement. A repeat move not permitted by the KO rule.')
             return False
     return True
 
@@ -348,6 +341,56 @@ def get_move_ordering(board_encoded,piece_type):
 #     task.join()
     #writeJson(data,"data.txt")
 
+def generate_stable_center_moves():
+    return [[1,2],[2,1],[2,2],[2,3],[3,1]]
+
+def get_all_valid_stable_center_move(board,piece):
+    stable_center=generate_stable_center_moves()
+    moves=[]
+    for i,j in stable_center:
+        if  is_position_valid(board,i,j,piece,True):
+            moves.append([i,j])
+    random.shuffle(moves)
+    return moves
+
+def get_all_valid_corner_center_moves(board,piece):
+    center=[[1,1],[1,3],[3,1],[3,3]]
+    moves=[]
+    for i,j in center:
+        if  is_position_valid(board,i,j,piece,True):
+            moves.append([i,j])
+    random.shuffle(moves)
+    return moves
+
+def get_one_stable_center_move(board,piece):
+    stable_center=generate_stable_center_moves()
+    moves=[]
+    for i,j in stable_center:
+        if  is_position_valid(board,i,j,piece,True):
+            moves.append([i,j])
+    print(moves)
+    if moves:
+        n=len(moves)
+        return moves[random.randint(0,n-1)]
+
+
+def get_greedy_next_moves(board,my_piece):
+    opp_pieces=[]
+    for i in range(boardSize):
+        for j in range(boardSize):
+   
+            if board[i][j]==(3-my_piece):
+                opp_pieces.append([i,j])
+    opp_pieces_by_lib=[]
+    for i,j in opp_pieces:
+        lib = get_total_first_order_liberty_count(board,opp_pieces,3-my_piece)
+        opp_pieces_by_lib.append([[i,j],lib])
+            
+    opp_pieces_by_lib.sort(key=lambda x : x[1])
+    print(opp_pieces_by_lib)
+    
+
+
 def visualize_board(board):
     for i in range(len(board)):
         for j in range(len(board)):
@@ -366,13 +409,17 @@ def isBoardEmpty(board):
             if board[i][j]!=0:
                 return False
     return True
+
+def isInCenter(i,j):
+    return i>0 and i<boardSize-1 and j>0 and j<boardSize-1
 	
 if __name__ == "__main__":
 
     board=[[0,2,1,2,1],[0,2,1,1,1],[0,0,0,1,0],[0,0,0,0,0],[0,0,0,0,0]]
+    visualize_board(board)
     # print(get_liberties(board,encode_state(board),1))
     # print(check_liberty_exists(board,0,2,1,[]))
-    print(calculate_quad_counts(board,1))
+    print(get_greedy_next_moves(board,1))
     # print(calculate_euler_number(board,1))
     # print(check_liberty_exists(boar
     # d,0,1,1,[]))

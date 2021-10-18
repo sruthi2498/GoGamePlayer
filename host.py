@@ -6,8 +6,8 @@ import argparse
 from collections import Counter
 from copy import deepcopy
 
-from read import *
-from write import writeNextInput
+# from read import *
+# from write import writeNextInput
 
 class GO:
     def __init__(self, n):
@@ -406,6 +406,30 @@ class GO:
 
             self.n_move += 1
             self.X_move = not self.X_move # Players take turn
+
+def readInput(n, path="input.txt"):
+
+    with open(path, 'r') as f:
+        lines = f.readlines()
+
+        piece_type = int(lines[0])
+
+        previous_board = [[int(x) for x in line.rstrip('\n')] for line in lines[1:n+1]]
+        board = [[int(x) for x in line.rstrip('\n')] for line in lines[n+1: 2*n+1]]
+
+        return piece_type, previous_board, board
+
+
+def writeOutput(result, path="output.txt"):
+    res = ""
+    if result == "PASS":
+    	res = "PASS"
+    else:
+	    res += str(result[0]) + ',' + str(result[1])
+
+    with open(path, 'w') as f:
+        f.write(res)
+
 
 def judge(n_move, verbose=False):
 
