@@ -169,14 +169,14 @@ def calculateUtilityOfBoard(board, my_piece):
         whiteScore+=2
     myScore = blackScore if my_piece==1 else whiteScore
     
-
     f5 = blackScore-whiteScore if my_piece==1 else whiteScore-blackScore
 
     blackEuler,whiteEuler = calculate_euler_number(board,board_encoded,1)
     f4 = blackEuler - whiteEuler if my_piece==1 else  whiteEuler - blackEuler
 
 
-    utility =  max(f1   , -4) - (4*f4)  + (countDiffFactor*countDiff)  + myScore
+    #print("f1 ",f1," f4 ",f4," countDiffFactor*countDiff ",countDiffFactor*countDiff," myScore ",myScore)
+    utility =  max(f1 , -4) - (4*f4)  + (countDiffFactor*countDiff)  + myScore
     
     # if my_piece==1 and countDiff<3:
     #     utility-=5
@@ -294,7 +294,7 @@ def compare_board( board1, board2):
     return True
 
 def is_position_valid(board, i, j, piece_type, test_check=False):
-    
+    #visualize_board(board)
     verbose = True
     if test_check:
         verbose = False
@@ -316,6 +316,7 @@ def is_position_valid(board, i, j, piece_type, test_check=False):
 
     opponent_piece_type = 2 if piece_type==1 else 1
     dead_pieces,test_board = remove_died_pieces(test_board,opponent_piece_type)
+    #visualize_board(test_board)
     liberty_exists,_ = check_liberty_exists(test_board,i,j,piece_type,[])
     if not liberty_exists:
         return False
@@ -412,6 +413,21 @@ def isBoardEmpty(board):
 
 def isInCenter(i,j):
     return i>0 and i<boardSize-1 and j>0 and j<boardSize-1
+
+def getNewBoardDeadCount(board1,board2,piece_type):
+    c1 = get_count(board1,piece_type)
+    c2 = get_count(board2,piece_type)
+    if c1<c2:
+        return c1-c2
+    return 0
+
+def getUtilityWithDeadCount(utility,previous_board,board,piece_type):
+    my_dead_count = getNewBoardDeadCount(previous_board,board,piece_type)
+    opp_dead_count = getNewBoardDeadCount(previous_board,board,3-piece_type)
+    # if opp_dead_count or my_dead_count :
+    #     print(my_dead_count,opp_dead_count)
+    utility = utility+ opp_dead_count - my_dead_count
+    return utility 
 	
 if __name__ == "__main__":
 

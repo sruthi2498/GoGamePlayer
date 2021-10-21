@@ -1,177 +1,8 @@
 from copy import deepcopy
 import math
 import random
-# import time
 
-# from jsonUtil import writeJson,readJson
-from boardUtil import calculateUtilityOfBoard, get_counts, is_position_valid, remove_died_pieces,isBoardEmpty,compare_board,get_all_valid_stable_center_move,get_all_valid_corner_center_moves,get_count,visualize_board,isInCenter
-
-
-PLAYER_BLACK = 1
-PLAYER_WHITE = 2
-
-
-class MyPlayer():
-    def __init__(self, piece_type):
-        self.piece_type = piece_type
-        self.minmax_depth = 3
-        self.boardSize = 5
-
-    def checkMinMaxLeafNode(self,depth,current_piece,consecutive_pass_count,moveCount):
-        if moveCount>25 or depth>=self.minmax_depth or consecutive_pass_count==2 :
-            return True
-        return False
-
-    def generateMoves(self,board,moveCount):
-        prioritizeCenterMoves = True if self.piece_type==1 and  moveCount<=8 else False
-        #print(prioritizeCenterMoves)
-        if prioritizeCenterMoves : 
-            stable_center_moves = get_all_valid_stable_center_move(board,self.piece_type)
-            corner_center_moves=get_all_valid_corner_center_moves(board,self.piece_type)
-            random.shuffle(stable_center_moves)
-            random.shuffle(corner_center_moves)
-        moves=[]
-        for i in range(0,self.boardSize):
-            for j in range(0,self.boardSize):
-                if board[i][j]==0:
-                    moves.append([i,j])
-        #moves.append([-1,-1])
-        random.shuffle(moves)
-        if prioritizeCenterMoves:
-            n_moves= stable_center_moves+corner_center_moves
-            for m in moves:
-                if m not in n_moves:
-                    n_moves.append(m)
-            #print(n_moves)
-            return n_moves,(stable_center_moves or corner_center_moves)
-
-        return moves,False
-
-    def MinValue(self,previous_board,board,depth,current_piece,consecutive_pass_count, alpha, beta,moveCount):
-        #print("MinValue depth = ",depth)
-        action = "PASS"
-        if  self.checkMinMaxLeafNode(depth,current_piece,consecutive_pass_count,moveCount):
-            return calculateUtilityOfBoard(board,self.piece_type),action
-        next_piece = 2 if current_piece == 1 else 1
-        v = math.inf
-        max_dead_opp_count = 0
-        
-        test_board = deepcopy(board)
-        moves, prioritizedCenterMoves = self.generateMoves(board,moveCount)
-        for i,j in moves:
-            if is_position_valid(test_board,i, j, current_piece, test_check = True):
-                old = test_board[i][j]
-                test_board[i][j] = current_piece
-
-                test_board_2 = deepcopy(test_board)
-                opponent_count = get_count(test_board_2,3-self.piece_type)
-                dead_pieces,test_board_2 = remove_died_pieces(test_board_2,3-self.piece_type)
-
-                if not(dead_pieces and compare_board(previous_board,test_board_2)):
-                    new_opponent_count = get_count(test_board_2,3-self.piece_type)
-                    dead_opponent_count = new_opponent_count-opponent_count 
-                    dead_opponent_count = 0 if dead_opponent_count<0 else (3*dead_opponent_count)
-                    if dead_opponent_count>max_dead_opp_count:
-                        max_dead_opp_count = dead_opponent_count
-
-                    currVal,_ = self.MaxValue(previous_board,test_board_2,depth+1,next_piece,0,alpha, beta,moveCount+1)
-                    currVal+=dead_opponent_count
-                    #print("MinValue ",i,j,currVal)
-                    if (currVal==v) and not isInCenter(action[0],action[1]) and isInCenter(i,j):
-                        v = currVal
-                        action=[i,j]
-
-                    elif currVal<v  :
-                        v = currVal
-                        action=[i,j]
-
-                    test_board[i][j]=old
-                    if v<=alpha:
-                        return v,action
-                    beta = min(beta,v)
-                    
-
-        # action : pass
-        # noActionVal,_ = self.MaxValue(test_board,depth+1,next_piece,consecutive_pass_count+1,alpha, beta)
-        # if noActionVal < v:
-        #     #print("MinValue : v = ",v," noActionVal = ",noActionVal)
-        #     v = noActionVal
-        #     action = "PASS"
-        return v,action
-
-
-    def MaxValue(self,previous_board,board,depth,current_piece,consecutive_pass_count,alpha, beta,moveCount):
-        #print("MaxValue depth = ",depth)
-        action = "PASS"
-        if self.checkMinMaxLeafNode(depth,current_piece,consecutive_pass_count,moveCount):
-            return calculateUtilityOfBoard(board,self.piece_type),action
-        next_piece = 2 if current_piece == 1 else 1
-        v = -math.inf
-        max_dead_opp_count = 0
-        
-        test_board = deepcopy(board)
-
-        moves, prioritizedCenterMoves = self.generateMoves(board,moveCount)
-        for i,j in moves:
-            if is_position_valid(test_board,i, j, current_piece, test_check = True):
-                old = test_board[i][j]
-                test_board[i][j] = current_piece
-                test_board_2 = deepcopy(test_board)
-                opponent_count = get_count(test_board_2,3-self.piece_type)
-                dead_pieces,test_board_2 = remove_died_pieces(test_board_2,3-self.piece_type)
-
-                if not(dead_pieces and compare_board(previous_board,test_board_2)):
-                    new_opponent_count = get_count(test_board_2,3-self.piece_type)
-                    dead_opponent_count = new_opponent_count-opponent_count 
-                    dead_opponent_count = 0 if dead_opponent_count<0 else (3*dead_opponent_count)
-                    if dead_opponent_count>max_dead_opp_count:
-                        max_dead_opp_count = dead_opponent_count
-
-                    currval,_ = self.MinValue(previous_board,test_board_2,depth+1,next_piece,0,alpha, beta,moveCount+1)
-                    currval+=dead_opponent_count
-
-                    if (currval==v) and not isInCenter(action[0],action[1]) and isInCenter(i,j):
-                        v = currval
-                        action=[i,j]
-                    elif currval>v :
-                        #print("MaxValue ",i,j,currval)
-                        v = currval
-                        action = [i,j]
-
-                    test_board[i][j]= old
-                    if v>=beta:
-                        #print("MaxValue : Returning v = ",v," at ",i,j)
-                        return v,action
-                    alpha = max(alpha,v)
-            
-
-        # action : pass
-        # noActionVal,_ = self.MinValue(test_board,depth+1,next_piece,consecutive_pass_count+1,alpha, beta)
-        # if noActionVal > v :
-        #     #print("MaxValue : v = ",v," noActionVal = ",noActionVal)
-        #     v = noActionVal
-        #     action = "PASS"
-        
-        return v,action
-
-    def AlphaBetaSearch(self,previous_board,board, moveCount):
-        value,action = self.MaxValue(previous_board,board,0,self.piece_type,0,-math.inf,math.inf,moveCount)
-        print(action,value)
-        return action
-
-
-
-    def get_next_move(self,previous_board, board, moveCount):
-        if self.piece_type==1 and moveCount==1:
-            return [1,1]
-        # if moveCount<8:
-        #     action = get_stable_center_move(board,self.piece_type)
-        #     if action:
-        #         print(action)
-        #         return action
-        action = self.AlphaBetaSearch(previous_board,board, moveCount)
-        return action
-
+boardSize = 5
 
 def readInput(n, path="input.txt"):
 
@@ -211,39 +42,427 @@ def updateMoveCount(count):
         f.write(str(count))
     f.close()
 
+def isBoardEmpty(board):
+    for i in range(boardSize):
+        for j in range(boardSize):
+            if board[i][j]!=0:
+                return False
+    return True
+
+def getNeighbourPositions(i,j):
+    neighbors = []
+    if i > 0: neighbors.append((i-1, j))
+    if i < boardSize - 1: neighbors.append((i+1, j))
+    if j > 0: neighbors.append((i, j-1))
+    if j < boardSize - 1: neighbors.append((i, j+1))
+    return neighbors
+
+def getLibertyCount(board, k,l,piece_type, visited ):
+    #print("Liberty check at ",k,l)
+    current_pos_string= str(k)+"_"+str(l)
+    neighbs = getNeighbourPositions(k,l)
+    opponent_piece_type = 3-piece_type
+    opponent_neighbs_count = 0
+    friend_neighbs=[]
+    c=0
+    for i,j in neighbs :
+        if board[i][j]==0:
+            c+=1
+        elif board[i][j]==opponent_piece_type:
+            opponent_neighbs_count+=1
+        elif str(i)+"_"+str(j) not in visited:
+            friend_neighbs.append([i,j])
+    if c:
+        return c, visited
+
+    # surrounded by opponents
+    if opponent_neighbs_count == len(neighbs):
+        return 0,visited
+
+    visited.append(current_pos_string)
+    neigbhsLibertyCount = 0
+    neighbsVisited = []
+    for i,j in friend_neighbs:
+        currLib,neighbVisited = getLibertyCount(board,i,j,piece_type, visited )
+        #print("at neighb ",i,j, "liberty = ",currLib)
+        neigbhsLibertyCount = neigbhsLibertyCount + currLib
+        neighbsVisited = visited + neighbVisited
+        if neigbhsLibertyCount :
+            return neigbhsLibertyCount,list(set(neighbsVisited ))
+
+    return neigbhsLibertyCount,list(set(neighbsVisited ))
+
+def removePiecesAtPositions(board, positions):
+    for piece in positions:
+        board[piece[0]][piece[1]] = 0
+    return board
+
+def getDeadPieces(board, piece_type):
+    died_pieces = []
+    allVisited = []
+    for i in range(len(board)):
+        for j in range(len(board)):
+            if board[i][j] == piece_type:
+                if str(i)+"_"+str(j) in allVisited:
+                    died_pieces.append((i,j))
+                else:
+                    hasLiberty, visited = getLibertyCount(board,i,j, piece_type,[])
+                    if not hasLiberty:
+                        allVisited = allVisited + visited
+                        died_pieces.append((i,j))
+    return died_pieces
+
+def removeDeadPieces(board, piece_type):
+    died_pieces = getDeadPieces(board,piece_type)
+    if not died_pieces: return [],board
+    board=removePiecesAtPositions(board,died_pieces)
+    return died_pieces,board
+
+def areBoardsEqual( board1, board2):
+    for i in range(boardSize):
+        for j in range(boardSize):
+            if board1[i][j] != board2[i][j]:
+                return False
+    return True
+
+def isPositionValid(board, i, j, piece_type):
+    if not (i >= 0 and i < len(board)):
+        return False
+    if not (j >= 0 and j < len(board)):
+        return False
+    
+    if board[i][j] != 0:
+        return False
+    test_board = deepcopy(board)
+    test_board[i][j] = piece_type
+
+    liberty_exists,_ = getLibertyCount(test_board,i,j,piece_type,[])
+    #print("First liberty check : ",liberty_exists)
+    if liberty_exists:
+        return True
+
+    opponent_piece_type = 3-piece_type
+    dead_pieces,test_board = removeDeadPieces(test_board,opponent_piece_type)
+    #visualize_board(test_board)
+    liberty_exists,_ = getLibertyCount(test_board,i,j,piece_type,[])
+    if not liberty_exists:
+        return False
+    else:
+        if dead_pieces and areBoardsEqual(board, test_board):
+            return False
+    return True
+
+
+def displayBoard(board):
+    for i in range(boardSize):
+        for j in range(boardSize):
+            if board[i][j] == 0:
+                print(' ', end=' ')
+            elif board[i][j] == 1:
+                print('X', end=' ')
+            else:
+                print('O', end=' ')
+        print()
+    print('-' * boardSize * 2)
+
+def isLocInCenter(i,j):
+    return i>0 and i<boardSize-1 and j>0 and j<boardSize-1
+
+
+
+def getPositionsOfPiece(board,piece_type):
+    my_piece_locs = []
+    n = len(board)
+    for i in range(n):
+        for j in range(n):
+            if board[i][j] == piece_type:
+                my_piece_locs.append([i,j])
+    return my_piece_locs
+
+def getFirstOrderLibertyCount(board,piece_type):
+    locs = getPositionsOfPiece(board,piece_type)
+    totalLiberty = 0
+    marked=[]
+    for i,j in locs:
+        neighbs = getNeighbourPositions(i,j)
+        for k,l in neighbs:
+            if board[k][l]==0:
+                neighb_string = str(k)+"_"+str(l)
+                if neighb_string not in marked:
+                    totalLiberty+=1
+                    marked.append(neighb_string)
+    return totalLiberty
+
+def getSecondOrderLibertyCount(board,piece):
+    locs = getPositionsOfPiece(board,piece)
+    locsWithNoEmptyNeighb=[]
+    for i,j in locs:
+        neighbs = getNeighbourPositions(i,j)
+        neighbNotEmptyCount = 0
+        for k,l in neighbs:
+            if board[k][l]!=0:
+                neighbNotEmptyCount+=1
+        if  neighbNotEmptyCount == len(neighbs):
+            locsWithNoEmptyNeighb.append([i,j])
+    
+    return getTotalLibertyCountForPieceType(board,piece,locsWithNoEmptyNeighb) 
+
+def getTotalLibertyCountForPieceType(board,piece, locs=[]):
+    if not locs:
+        locs = getPositionsOfPiece(board,piece)
+    totalLiberty = 0
+    Visted = []
+    for i,j in locs:
+        curr = str(i)+"_"+str(j)
+        if  curr not in Visted:
+            libCount,vis = getLibertyCount(board,i,j,piece,[])
+            #print(i,j,libCount,visited)
+            totalLiberty+=libCount
+            for v in vis:
+                if v!=curr and v not in Visted:
+                    totalLiberty+=libCount
+                    Visted.append(v)
+    return totalLiberty
+
+def getCountOfPiece(board,piece):
+    count = 0
+    n = len(board)
+    for i in range(n):
+        for j in range(n):
+            if board[i][j] == piece:
+                count+=1
+    return count
+
+def getEulerNumbberQuadType(board,i,j, piece_type): #quad till (i,j) = (i-1,j-1) (i-1,j) (i,j-1) (i,j)
+    one = 0 if i-1 < 0 or j-1 <0 or board[i-1][j-1]!=piece_type else 1
+    two = 0 if i-1 < 0 or j <0 or j>=boardSize or board[i-1][j]!=piece_type else 1
+    three = 0 if i < 0 or i>=boardSize or j-1 <0  or board[i][j-1]!=piece_type else 1
+    four = 0 if i < 0 or i>=boardSize or j<0 or j>=boardSize  or board[i][j]!=piece_type else 1
+    sum = one+two+three+four
+    if sum==1:
+        return "q1"
+    elif sum==2 and (\
+         (  i-1>=0 and j-1>=0 and board[i-1][j-1]==piece_type and i<boardSize and j<boardSize and  board[i][j]==piece_type ) \
+             or\
+         ( i<boardSize and  j-1>=0 and  board[i][j-1]==piece_type and i-1>=0 and j<boardSize and board[i-1][j]==piece_type ) ):
+        return "qd"
+    elif sum==3:
+        return "q3"
+    return "none"
+        
+def getEulerNumberQuadDict(board,piece_type):
+    quad_dict={"q1":0,"q3":0,"qd":0,"none":0}
+    for i in range(0,boardSize+1):
+        for j in range(0,boardSize+1):
+            quad_dict[getEulerNumbberQuadType(board,i,j,piece_type)]+=1
+    return quad_dict
+
+def getEulerNumber(board,piece):
+    quad_dict = getEulerNumberQuadDict(board,piece)
+    euler =  (quad_dict["q1"]-quad_dict["q3"] + (2*quad_dict["qd"]))/4
+    return euler
+    
+
+def calculateUtilityOfBoard(board,my_piece, move_count):
+    blackFirstOrderLiberty = getFirstOrderLibertyCount(board,1)
+    blackSecondOrderLiberty = getSecondOrderLibertyCount(board,1)
+    whiteFirstOrderLiberty = getFirstOrderLibertyCount(board,2)
+    whiteSecondOrderLiberty = getSecondOrderLibertyCount(board,2)
+
+    blackCount = getCountOfPiece(board,1)
+    whiteCount = getCountOfPiece(board,2)
+
+    blackEuler = getEulerNumber(board,1)
+    whiteEuler = getEulerNumber(board,2)
+
+    blackScore = blackCount
+    whiteScore = whiteCount + 2.5
+
+
+    f1 = blackFirstOrderLiberty - whiteFirstOrderLiberty if my_piece==1 else  whiteFirstOrderLiberty - blackFirstOrderLiberty
+
+    f2 = blackSecondOrderLiberty - whiteSecondOrderLiberty if my_piece==1 else  whiteSecondOrderLiberty - blackSecondOrderLiberty
+
+    f4 = blackEuler - whiteEuler if my_piece==1 else  whiteEuler - blackEuler
+
+    countDiff = blackCount-whiteCount if my_piece==1 else whiteCount - blackCount
+    countDiffFactor = 4 if my_piece==1 else 2
+
+    myScore = blackScore if my_piece==1 else whiteScore
+
+    utility =  max(f1 , -4) - (4*f4)  + (countDiffFactor*countDiff)  + myScore
+
+    return utility
+
+
+def generateAllMoves(board,my_piece, moveCount):
+        prioritizeCenterMoves = True if my_piece==1 and  moveCount<=8 else False
+        #print(prioritizeCenterMoves)
+        if prioritizeCenterMoves : 
+            stable_center_moves = [[1,2],[2,1],[2,2],[2,3],[3,1]]
+            corner_center_moves=[[1,1],[1,3],[3,1],[3,3]]
+            random.shuffle(stable_center_moves)
+            random.shuffle(corner_center_moves)
+
+        moves=[]
+        for i in range(0,boardSize):
+            for j in range(0,boardSize):
+                if board[i][j]==0:
+                    moves.append([i,j])
+        random.shuffle(moves)
+
+        if prioritizeCenterMoves:
+            n_moves= stable_center_moves+corner_center_moves
+            for m in moves:
+                if m not in n_moves:
+                    n_moves.append(m)
+            return n_moves,(stable_center_moves or corner_center_moves)
+
+        return moves,False
+
+class MyPlayer():
+    def __init__(self, piece_type):
+        self.piece_type = piece_type
+        self.minmax_depth = 3
+        self.boardSize = 5
+
+    def get_next_move(self,previous_board, board, moveCount):
+        if self.piece_type==1 and moveCount==1:
+            return [1,1]
+        action = self.AlphaBetaSearch(previous_board,board, moveCount)
+        return action
+
+    def get_result_state(self,board,action,piece_type):
+        test_board = deepcopy(board)
+        test_board[action[0]][action[1]] = piece_type
+        #displayBoard(test_board)
+        #remove dead opponents
+        opponent = 3-piece_type
+        #print(opponent)
+        dead_opponents, test_board = removeDeadPieces(test_board,opponent)
+        #print(dead_opponents)
+        #displayBoard(test_board)
+        return dead_opponents,test_board
+
+    def AlphaBetaSearch(self,previous_board,board, moveCount):
+        value,action = self.MaxValue(board, previous_board, board,0,self.piece_type,0,-math.inf,math.inf,moveCount)
+        print(action,value)
+        return action
+    
+    def checkMinMaxLeafNode(self,depth,consecutive_pass_count,moveCount):
+        if moveCount>24 or depth>=self.minmax_depth or consecutive_pass_count==2 :
+            return True
+        return False
+
+    def getValidMoves(self,board,moves, piece_type):
+        valid_moves=[]
+        for i,j in moves:
+            if isPositionValid(board,i, j, piece_type):
+                valid_moves.append([i,j])
+        return valid_moves
+
+    def MaxValue(self, start_board, previous_board, board, depth,current_piece,consecutive_pass_count,alpha, beta,moveCount):
+
+        action = "PASS"
+        if self.checkMinMaxLeafNode(depth,consecutive_pass_count,moveCount):
+            utility = calculateUtilityOfBoard(board,self.piece_type,moveCount)
+            return utility,action
+        next_piece = 3-current_piece
+        v = -math.inf
+
+        moves, hasCenterMoves = generateAllMoves(board,self.piece_type, moveCount)
+        valid_moves = self.getValidMoves(board,moves,current_piece)
+
+        my_count = getCountOfPiece(board,self.piece_type)
+        opponent_count = getCountOfPiece(board,3-self.piece_type)
+
+        for i,j in valid_moves:
+
+            dead_pieces,result_board = self.get_result_state(board,[i,j],current_piece)
+
+
+            if not(dead_pieces and areBoardsEqual(previous_board,result_board)):
+
+                opponent_new_count = getCountOfPiece(result_board,3-self.piece_type)
+                dead_opponents = 0 if opponent_count<opponent_new_count else opponent_count-opponent_new_count
+
+                currval,_ = self.MinValue(start_board, board,result_board,depth+1,next_piece,0,alpha, beta,moveCount+1)
+
+                currval+=dead_opponents
+
+                if (currval==v):
+                    if action =="PASS" or (not isLocInCenter(action[0],action[1]) and isLocInCenter(i,j)):
+                        v = currval
+                        action=[i,j]
+                elif currval>v :
+                    v = currval
+                    action = [i,j]
+
+                if v>=beta:
+                    return v,action
+                
+                alpha = max(alpha,v)
+                
+        
+        return v,action
+
+    def MinValue(self, start_board, previous_board, board, depth,current_piece,consecutive_pass_count,alpha, beta,moveCount):
+
+        action = "PASS"
+        if self.checkMinMaxLeafNode(depth,consecutive_pass_count,moveCount):
+            utility = calculateUtilityOfBoard(board,self.piece_type,moveCount)
+            return utility,action
+        next_piece = 3-current_piece
+        v = +math.inf
+
+        moves, hasCenterMoves = generateAllMoves(board,self.piece_type, moveCount)
+        valid_moves = self.getValidMoves(board,moves,current_piece)
+
+        my_count = getCountOfPiece(board,self.piece_type)
+        opponent_count = getCountOfPiece(board,3-self.piece_type)
+        #print(valid_moves)
+        for i,j in valid_moves:
+
+            dead_pieces,result_board = self.get_result_state(board,[i,j],current_piece)
+            if not(dead_pieces and areBoardsEqual(previous_board,result_board)):
+
+                opponent_new_count = getCountOfPiece(result_board,3-self.piece_type)
+                dead_opponents = 0 if opponent_count<opponent_new_count else opponent_count-opponent_new_count
+
+                currval,_ = self.MaxValue(start_board, board,result_board,depth+1,next_piece,0,alpha, beta,moveCount+1)
+
+                currval+=dead_opponents
+
+                if (currval==v):
+                    if action =="PASS" or (not isLocInCenter(action[0],action[1]) and isLocInCenter(i,j)):
+                        v = currval
+                        action=[i,j]
+                elif currval<v :
+                    v = currval
+                    action = [i,j]
+
+                if v<=alpha:
+                    return v,action
+                
+                beta = max(beta,v)
+                
+
+        return v,action
+ 
 
 
 if __name__ == "__main__":
-    # start = time.time()
     N = 5   
     piece_type, previous_board, board = readInput(N)
     player = MyPlayer( piece_type)
     if(isBoardEmpty(previous_board)):
         resetMoveCount()
         moveCount = 1 if isBoardEmpty(board) else 2
-        player.minmax_depth = 3
     else:
         moveCount = getMoveCount()+2
-        #if moveCount > 10 :
-       #     player.minmax_depth = 4
-        #elif moveCount > 20:
-        #    player.minmax_depth = 5
-    updateMoveCount(moveCount)
 
-    
-    #print(board)
+    print("move : ",moveCount)
     action = player.get_next_move(previous_board,board,moveCount)
     writeOutput(action)
-    # dump_data()
-    # print("Time =",time.time()-start)
 
-    # piece_type =2 
-    board=[[0,0,0,2,0],[0,1,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0]]
-    visualize_board(board)
-    player.get_next_move(previous_board,board,3)
-    # print(valid_place_check(board,2, 3, 1, test_check = True))
-    #print("Liberty for 3,1",check_liberty_exists(board,3,1,2,[]))
     
-    #
-    # print(check_liberty_exists(board,0,1,1,[]))
-    # print(find_died_pieces(board,))
