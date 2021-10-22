@@ -263,7 +263,7 @@ def getEulerNumber(board,piece):
     return euler
     
 
-def calculateUtilityOfBoard(board,my_piece, move_count):
+def calculateUtilityOfBoard(previous_board,board,my_piece, move_count):
     blackFirstOrderLiberty = getFirstOrderLibertyCount(board,1)
     blackSecondOrderLiberty = getSecondOrderLibertyCount(board,1)
     whiteFirstOrderLiberty = getFirstOrderLibertyCount(board,2)
@@ -278,6 +278,12 @@ def calculateUtilityOfBoard(board,my_piece, move_count):
     blackScore = blackCount
     whiteScore = whiteCount + 2.5
 
+    blackPreviousCount = getCountOfPiece(previous_board,1)
+    whitePreviousCount = getCountOfPiece(previous_board,2)
+    
+    deadBlack = 0 if blackPreviousCount<blackCount else blackPreviousCount-blackCount
+    deadWhite = 0 if whitePreviousCount<whiteCount else whitePreviousCount-whiteCount
+
 
     f1 = blackFirstOrderLiberty - whiteFirstOrderLiberty if my_piece==1 else  whiteFirstOrderLiberty - blackFirstOrderLiberty
 
@@ -290,10 +296,41 @@ def calculateUtilityOfBoard(board,my_piece, move_count):
 
     myScore = blackScore if my_piece==1 else whiteScore
 
-    utility =  max(f1 , -4) - (4*f4)  + (countDiffFactor*countDiff)  + myScore
+    deadFactor = 2 if my_piece==1 else 1
+    deadOppCount = deadWhite if my_piece==1 else deadBlack
+    deadMyCount = deadBlack if my_piece==1 else deadWhite
 
+
+    utility =  max(f1 , -4) - (4*f4)  + (countDiffFactor*countDiff)  + myScore 
+
+    # f1 = blackFirstOrderLiberty - whiteFirstOrderLiberty 
+    # f2 = blackSecondOrderLiberty - whiteSecondOrderLiberty 
+    # f4 = blackEuler - whiteEuler
+    # utility =  min(max(f1 +f2, -3),3) - (4*f4) 
+    # if my_piece==2:
+    #     utility = -utility 
     return utility
 
+def getResultBoard(board,action,piece_type):
+    test_board = deepcopy(board)
+    #print(action)
+    test_board[action[0]][action[1]] = piece_type
+    opponent = 3-piece_type
+    dead_opponents, test_board = removeDeadPieces(test_board,opponent)
+    return dead_opponents,test_board
+
+def getOpponentDeathCountForAction(board,action,piece_type):
+    dead_opponents,_ = getResultBoard(board,action,piece_type)
+    return len(dead_opponents)
+
+def sortMovesByDeadOpponents(board,moves,piece_type):
+    d_moves=[]
+    for move in moves:
+        dead_opp = getOpponentDeathCountForAction(board,move,piece_type)
+        d_moves.append([dead_opp,move])
+    d_moves.sort(key=lambda x : x[0],reverse=True)
+    moves = [x[1] for x in d_moves]
+    return moves
 
 def generateAllMoves(board,my_piece, moveCount):
         prioritizeCenterMoves = True if my_piece==1 and  moveCount<=8 else False
@@ -316,8 +353,10 @@ def generateAllMoves(board,my_piece, moveCount):
             for m in moves:
                 if m not in n_moves:
                     n_moves.append(m)
+            n_moves = sortMovesByDeadOpponents(board,n_moves,my_piece)
             return n_moves,(stable_center_moves or corner_center_moves)
 
+        moves = sortMovesByDeadOpponents(board,moves,my_piece)
         return moves,False
 
 class MyPlayer():
@@ -332,17 +371,7 @@ class MyPlayer():
         action = self.AlphaBetaSearch(previous_board,board, moveCount)
         return action
 
-    def get_result_state(self,board,action,piece_type):
-        test_board = deepcopy(board)
-        test_board[action[0]][action[1]] = piece_type
-        #displayBoard(test_board)
-        #remove dead opponents
-        opponent = 3-piece_type
-        #print(opponent)
-        dead_opponents, test_board = removeDeadPieces(test_board,opponent)
-        #print(dead_opponents)
-        #displayBoard(test_board)
-        return dead_opponents,test_board
+    
 
     def AlphaBetaSearch(self,previous_board,board, moveCount):
         value,action = self.MaxValue(board, previous_board, board,0,self.piece_type,0,-math.inf,math.inf,moveCount)
@@ -365,7 +394,7 @@ class MyPlayer():
 
         action = "PASS"
         if self.checkMinMaxLeafNode(depth,consecutive_pass_count,moveCount):
-            utility = calculateUtilityOfBoard(board,self.piece_type,moveCount)
+            utility = calculateUtilityOfBoard(previous_board,board,self.piece_type,moveCount)
             return utility,action
         next_piece = 3-current_piece
         v = -math.inf
@@ -373,21 +402,23 @@ class MyPlayer():
         moves, hasCenterMoves = generateAllMoves(board,self.piece_type, moveCount)
         valid_moves = self.getValidMoves(board,moves,current_piece)
 
+        if not valid_moves:
+            utility = calculateUtilityOfBoard(previous_board,board,self.piece_type,moveCount)
+            return utility,action
+
         my_count = getCountOfPiece(board,self.piece_type)
         opponent_count = getCountOfPiece(board,3-self.piece_type)
 
         for i,j in valid_moves:
 
-            dead_pieces,result_board = self.get_result_state(board,[i,j],current_piece)
-
-
+            dead_pieces,result_board = getResultBoard(board,[i,j],current_piece)
+            # print(i,j,len(dead_pieces),areBoardsEqual(previous_board,result_board), not(dead_pieces and areBoardsEqual(previous_board,result_board)))
             if not(dead_pieces and areBoardsEqual(previous_board,result_board)):
-
+                #print(i,j)
                 opponent_new_count = getCountOfPiece(result_board,3-self.piece_type)
                 dead_opponents = 0 if opponent_count<opponent_new_count else opponent_count-opponent_new_count
 
                 currval,_ = self.MinValue(start_board, board,result_board,depth+1,next_piece,0,alpha, beta,moveCount+1)
-
                 currval+=dead_opponents
 
                 if (currval==v):
@@ -398,19 +429,20 @@ class MyPlayer():
                     v = currval
                     action = [i,j]
 
+                #print("MaxValue depth = ", depth, "currval = ",currval,"v = ",v,i,j)
+
                 if v>=beta:
                     return v,action
                 
                 alpha = max(alpha,v)
                 
-        
         return v,action
 
     def MinValue(self, start_board, previous_board, board, depth,current_piece,consecutive_pass_count,alpha, beta,moveCount):
 
         action = "PASS"
         if self.checkMinMaxLeafNode(depth,consecutive_pass_count,moveCount):
-            utility = calculateUtilityOfBoard(board,self.piece_type,moveCount)
+            utility = calculateUtilityOfBoard(previous_board,board,self.piece_type,moveCount)
             return utility,action
         next_piece = 3-current_piece
         v = +math.inf
@@ -418,12 +450,15 @@ class MyPlayer():
         moves, hasCenterMoves = generateAllMoves(board,self.piece_type, moveCount)
         valid_moves = self.getValidMoves(board,moves,current_piece)
 
+        if not valid_moves:
+            utility = calculateUtilityOfBoard(previous_board,board,self.piece_type,moveCount)
+            return utility,action
+
         my_count = getCountOfPiece(board,self.piece_type)
         opponent_count = getCountOfPiece(board,3-self.piece_type)
-        #print(valid_moves)
+        #print(current_piece,valid_moves)
         for i,j in valid_moves:
-
-            dead_pieces,result_board = self.get_result_state(board,[i,j],current_piece)
+            dead_pieces,result_board = getResultBoard(board,[i,j],current_piece)
             if not(dead_pieces and areBoardsEqual(previous_board,result_board)):
 
                 opponent_new_count = getCountOfPiece(result_board,3-self.piece_type)
@@ -441,11 +476,13 @@ class MyPlayer():
                     v = currval
                     action = [i,j]
 
+                #print("MinValue depth = ", depth, "currval = ",currval,"v = ",v,i,j)
+
                 if v<=alpha:
                     return v,action
                 
-                beta = max(beta,v)
-                
+                beta = min(beta,v)
+
 
         return v,action
  
@@ -460,6 +497,8 @@ if __name__ == "__main__":
         moveCount = 1 if isBoardEmpty(board) else 2
     else:
         moveCount = getMoveCount()+2
+
+    updateMoveCount(moveCount)
 
     print("move : ",moveCount)
     action = player.get_next_move(previous_board,board,moveCount)
