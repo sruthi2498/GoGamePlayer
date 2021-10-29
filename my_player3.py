@@ -57,6 +57,14 @@ def getNeighbourPositions(i,j):
     if j < boardSize - 1: neighbors.append((i, j+1))
     return neighbors
 
+def getOpponentNeighbourCount(board,i,j,piece_type):
+    neighbors = getNeighbourPositions(i,j)
+    count=0
+    for i,j in neighbors:
+        if board[i][j]==3-piece_type:
+            count+=1
+    return count
+
 def getLibertyCount(board, k,l,piece_type, visited ):
     #print("Liberty check at ",k,l)
     current_pos_string= str(k)+"_"+str(l)
@@ -263,7 +271,7 @@ def getEulerNumber(board,piece):
     return euler
     
 
-def calculateUtilityOfBoard(previous_board,board,my_piece, move_count):
+def calculateUtilityOfBoard(previous_board,board,my_piece, move_count, verbose = False):
     blackFirstOrderLiberty = getFirstOrderLibertyCount(board,1)
     blackSecondOrderLiberty = getSecondOrderLibertyCount(board,1)
     whiteFirstOrderLiberty = getFirstOrderLibertyCount(board,2)
@@ -300,15 +308,11 @@ def calculateUtilityOfBoard(previous_board,board,my_piece, move_count):
     deadOppCount = deadWhite if my_piece==1 else deadBlack
     deadMyCount = deadBlack if my_piece==1 else deadWhite
 
+    if verbose:
+        print("f1 ",f1," f4 ",f4,"(countDiffFactor*countDiff)",(countDiffFactor*countDiff),"myScore",myScore)
 
     utility =  max(f1 , -4) - (4*f4)  + (countDiffFactor*countDiff)  + myScore 
 
-    # f1 = blackFirstOrderLiberty - whiteFirstOrderLiberty 
-    # f2 = blackSecondOrderLiberty - whiteSecondOrderLiberty 
-    # f4 = blackEuler - whiteEuler
-    # utility =  min(max(f1 +f2, -3),3) - (4*f4) 
-    # if my_piece==2:
-    #     utility = -utility 
     return utility
 
 def getResultBoard(board,action,piece_type):
@@ -323,23 +327,24 @@ def getOpponentDeathCountForAction(board,action,piece_type):
     dead_opponents,_ = getResultBoard(board,action,piece_type)
     return len(dead_opponents)
 
-def sortMovesByDeadOpponents(board,moves,piece_type):
+def sortMoves(board,moves,piece_type):
     d_moves=[]
     for move in moves:
         dead_opp = getOpponentDeathCountForAction(board,move,piece_type)
-        d_moves.append([dead_opp,move])
-    d_moves.sort(key=lambda x : x[0],reverse=True)
+        opp_neighbs = getOpponentNeighbourCount(board,move[0],move[1],piece_type)
+        d_moves.append([dead_opp,move,opp_neighbs])
+    d_moves.sort(key=lambda x : (x[0],x[2]),reverse=True)
     moves = [x[1] for x in d_moves]
     return moves
 
 def generateAllMoves(board,my_piece, moveCount):
-        prioritizeCenterMoves = True if my_piece==1 and  moveCount<=8 else False
+        prioritizeCenterMoves = True if  moveCount<=10 else False
         #print(prioritizeCenterMoves)
         if prioritizeCenterMoves : 
             stable_center_moves = [[1,2],[2,1],[2,2],[2,3],[3,1]]
             corner_center_moves=[[1,1],[1,3],[3,1],[3,3]]
-            random.shuffle(stable_center_moves)
-            random.shuffle(corner_center_moves)
+            stable_center_moves = sortMoves(board,stable_center_moves,my_piece)
+            corner_center_moves = sortMoves(board,corner_center_moves,my_piece)
 
         moves=[]
         for i in range(0,boardSize):
@@ -353,11 +358,16 @@ def generateAllMoves(board,my_piece, moveCount):
             for m in moves:
                 if m not in n_moves:
                     n_moves.append(m)
-            n_moves = sortMovesByDeadOpponents(board,n_moves,my_piece)
+            n_moves = sortMoves(board,n_moves,my_piece)
             return n_moves,(stable_center_moves or corner_center_moves)
 
-        moves = sortMovesByDeadOpponents(board,moves,my_piece)
+        moves = sortMoves(board,moves,my_piece)
         return moves,False
+
+def equalUtilityReplace(action, i, j):
+    #print(action,i,j)
+    return action =="PASS" or (not isLocInCenter(action[0],action[1]) and isLocInCenter(i,j))
+
 
 class MyPlayer():
     def __init__(self, piece_type):
@@ -415,14 +425,19 @@ class MyPlayer():
             # print(i,j,len(dead_pieces),areBoardsEqual(previous_board,result_board), not(dead_pieces and areBoardsEqual(previous_board,result_board)))
             if not(dead_pieces and areBoardsEqual(previous_board,result_board)):
                 #print(i,j)
+                my_new_count = getCountOfPiece(result_board,self.piece_type)
+                dead_mine = 0 if my_count<my_new_count else my_count-my_new_count
+
                 opponent_new_count = getCountOfPiece(result_board,3-self.piece_type)
                 dead_opponents = 0 if opponent_count<opponent_new_count else opponent_count-opponent_new_count
 
-                currval,_ = self.MinValue(start_board, board,result_board,depth+1,next_piece,0,alpha, beta,moveCount+1)
+                currval,minAction = self.MinValue(start_board, board,result_board,depth+1,next_piece,0,alpha, beta,moveCount+1)
                 currval+=dead_opponents
 
                 if (currval==v):
-                    if action =="PASS" or (not isLocInCenter(action[0],action[1]) and isLocInCenter(i,j)):
+                    # if minAction!="PASS" and depth<=1:
+                    #     print("opp action",minAction,"my old ",action,[i,j], dead_mine, dead_opponents,currval)
+                    if equalUtilityReplace(action,i,j):
                         v = currval
                         action=[i,j]
                 elif currval>v :
@@ -464,12 +479,14 @@ class MyPlayer():
                 opponent_new_count = getCountOfPiece(result_board,3-self.piece_type)
                 dead_opponents = 0 if opponent_count<opponent_new_count else opponent_count-opponent_new_count
 
-                currval,_ = self.MaxValue(start_board, board,result_board,depth+1,next_piece,0,alpha, beta,moveCount+1)
+                currval,maxAction = self.MaxValue(start_board, board,result_board,depth+1,next_piece,0,alpha, beta,moveCount+1)
 
                 currval+=dead_opponents
 
-                if (currval==v):
-                    if action =="PASS" or (not isLocInCenter(action[0],action[1]) and isLocInCenter(i,j)):
+                if (currval==v): 
+                    # if maxAction!="PASS" and depth<=1:
+                    #     print("maxAction",maxAction)
+                    if equalUtilityReplace(action,i,j):
                         v = currval
                         action=[i,j]
                 elif currval<v :

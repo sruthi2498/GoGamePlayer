@@ -431,6 +431,35 @@ def writeOutput(result, path="output.txt"):
         f.write(res)
 
 
+def readOutput(path="output.txt"):
+    with open(path, 'r') as f:
+        position = f.readline().strip().split(',')
+
+        if position[0] == "PASS":
+            return "PASS", -1, -1
+
+        x = int(position[0])
+        y = int(position[1])
+
+    return "MOVE", x, y
+
+
+def writeNextInput(piece_type, previous_board, board, path="input.txt"):
+	res = ""
+	res += str(piece_type) + "\n"
+	for item in previous_board:
+		res += "".join([str(x) for x in item])
+		res += "\n"
+        
+	for item in board:
+		res += "".join([str(x) for x in item])
+		res += "\n"
+
+	with open(path, 'w') as f:
+		f.write(res[:-1]);
+
+
+
 def judge(n_move, verbose=False):
 
     N = 5
