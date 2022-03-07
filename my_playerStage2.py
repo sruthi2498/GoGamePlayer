@@ -7,6 +7,7 @@ boardSize = 5
 '''
 Below segment is copied from read.py/write.py
 '''
+
 def readInput(n, path="input.txt"):
 
     with open(path, 'r') as f:
@@ -16,9 +17,10 @@ def readInput(n, path="input.txt"):
         board = [[int(x) for x in line.rstrip('\n')] for line in lines[n+1: 2*n+1]]
         return piece_type, previous_board, board
 
-'''
+    '''
 Below segment is copied from read.py/write.py
 '''
+
 def writeOutput(result, path="output.txt"):
     res = ""
     if result == "PASS":
@@ -42,7 +44,7 @@ def getMoveCount():
     return count
 
 def updateMoveCount(count):
-    #print("move count = ",count)
+    print("move count = ",count)
     with open("movecount.txt","w") as f:
         f.write(str(count))
     f.close()
@@ -141,6 +143,7 @@ def areBoardsEqual( board1, board2):
 '''
 Below segment is copied from host.py
 '''
+
 def isPositionValid(board, i, j, piece_type):
     if not (i >= 0 and i < len(board)):
         return False
@@ -167,6 +170,7 @@ def isPositionValid(board, i, j, piece_type):
         if dead_pieces and areBoardsEqual(board, test_board):
             return False
     return True
+
 
 '''
 Below segment is copied from host.py
@@ -211,18 +215,6 @@ def getFirstOrderLibertyCount(board,piece_type):
                     totalLiberty+=1
                     marked.append(neighb_string)
     return totalLiberty
-
-def getMaxDeadInNextStepPossible(board,piece):
-    opp = 3-piece
-    maxDead = 0
-    for i in range(0,boardSize):
-        for j in range(0,boardSize):
-            if board[i][j]==0 and isPositionValid(board,i,j,opp):
-                dp,_ = getResultBoard(board,[i,j],opp)
-                if len(dp)>maxDead:
-                    maxDead = len(dp) 
-    return maxDead
-    
 
 def getSecondOrderLibertyCount(board,piece):
     locs = getPositionsOfPiece(board,piece)
@@ -293,19 +285,6 @@ def getEulerNumber(board,piece):
     euler =  (quad_dict["q1"]-quad_dict["q3"] + (2*quad_dict["qd"]))/4
     return euler
     
-def getHolesCoveredByPiece(board,piece):
-    total=0
-    for i in range(boardSize):
-        for j in range(boardSize):
-            if board[i][j]==0:
-                count = 0
-                neighbs = getNeighbourPositions(i,j)
-                for k,l in neighbs:
-                    if board[k][l]==piece:
-                        count+=1
-                if count==len(neighbs):
-                    total+=1
-    return total
 
 def calculateUtilityOfBoard(previous_board,board,my_piece, move_count, verbose = False):
     blackFirstOrderLiberty = getFirstOrderLibertyCount(board,1)
@@ -328,11 +307,6 @@ def calculateUtilityOfBoard(previous_board,board,my_piece, move_count, verbose =
     deadBlack = 0 if blackPreviousCount<blackCount else blackPreviousCount-blackCount
     deadWhite = 0 if whitePreviousCount<whiteCount else whitePreviousCount-whiteCount
 
-    if verbose:
-        print("blackFirstOrderLiberty ",blackFirstOrderLiberty ,"whiteFirstOrderLiberty ",whiteFirstOrderLiberty)
-        print("deadBlack ",deadBlack ,"deadWhite ",deadWhite)
-        print("blackEuler ",blackEuler ,"whiteEuler ",whiteEuler)
-
 
     f1 = blackFirstOrderLiberty - whiteFirstOrderLiberty if my_piece==1 else  whiteFirstOrderLiberty - blackFirstOrderLiberty
 
@@ -349,16 +323,10 @@ def calculateUtilityOfBoard(previous_board,board,my_piece, move_count, verbose =
     deadOppCount = deadWhite if my_piece==1 else deadBlack
     deadMyCount = deadBlack if my_piece==1 else deadWhite
 
-    myPotentialDead = getMaxDeadInNextStepPossible(board,my_piece)
-    # holesCoveredByMyPiece = getHolesCoveredByPiece(board,my_piece)
-
     if verbose:
-        print("f1 ",f1," f4 ",f4,"(countDiffFactor*countDiff)",(countDiffFactor*countDiff),"myScore",myScore, "myPotentialDead",myPotentialDead)
+        print("f1 ",f1," f4 ",f4,"(countDiffFactor*countDiff)",(countDiffFactor*countDiff),"myScore",myScore)
 
     utility =  max(f1 , -4) - (4*f4)  + (countDiffFactor*countDiff)  + myScore 
-
-    if my_piece==1:
-        utility-=(0.5*myPotentialDead)
 
     return utility
 
@@ -411,24 +379,10 @@ def generateAllMoves(board,my_piece, moveCount):
         moves = sortMoves(board,moves,my_piece)
         return moves,False
 
-def equalUtilityReplace(board,old_action, i, j,current_piece):
+def equalUtilityReplace(action, i, j):
+    #print(action,i,j)
+    return action =="PASS" or (not isLocInCenter(action[0],action[1]) and isLocInCenter(i,j))
 
-    return old_action =="PASS" or (not isLocInCenter(old_action[0],old_action[1]) and isLocInCenter(i,j))
-
-def actionHasHigherUtility(board,action1,action2,piece,move_count):
-    _,board1 = getResultBoard(board,action1,piece)
-    _,board2 = getResultBoard(board,action2,piece)
-    u1 = calculateUtilityOfBoard(board, board1,piece,move_count)
-    u2 = calculateUtilityOfBoard(board,board2,piece,move_count)
-    #print(action1, u1,action2, u2)
-    return u1>u2
-
-def actionCreatesMoreHoles(board,action1,action2,piece):
-    _,board1 = getResultBoard(board,action1,piece)
-    _,board2 = getResultBoard(board,action2,piece)
-    h1 = getHolesCoveredByPiece(board1,piece)
-    h2 = getHolesCoveredByPiece(board2,piece)
-    return h1>h2
 
 class MyPlayer():
     def __init__(self, piece_type):
@@ -498,7 +452,7 @@ class MyPlayer():
                 if (currval==v):
                     # if minAction!="PASS" and depth<=1:
                     #     print("opp action",minAction,"my old ",action,[i,j], dead_mine, dead_opponents,currval)
-                    if equalUtilityReplace( result_board, action,i,j, current_piece):
+                    if equalUtilityReplace(action,i,j):
                         v = currval
                         action=[i,j]
                 elif currval>v :
@@ -547,7 +501,7 @@ class MyPlayer():
                 if (currval==v): 
                     # if maxAction!="PASS" and depth<=1:
                     #     print("maxAction",maxAction)
-                    if equalUtilityReplace( result_board, action,i,j, current_piece):
+                    if equalUtilityReplace(action,i,j):
                         v = currval
                         action=[i,j]
                 elif currval<v :
@@ -569,6 +523,7 @@ class MyPlayer():
 Below segment is copied from random_player 
 '''
 
+
 if __name__ == "__main__":
     N = 5   
     piece_type, previous_board, board = readInput(N)
@@ -582,7 +537,7 @@ if __name__ == "__main__":
     updateMoveCount(moveCount)
 
     print("move : ",moveCount)
-    next_move = player.get_next_move(previous_board,board,moveCount)
-    writeOutput(next_move)
+    action = player.get_next_move(previous_board,board,moveCount)
+    writeOutput(action)
 
     
